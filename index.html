@@ -16,8 +16,10 @@
             flex-direction: column; 
             align-items: center; 
             justify-content: center; 
-            height: 100vh; 
+            min-height: 100vh; 
             margin: 0px; 
+            padding: 20px;
+            box-sizing: border-box;
         }
 
         #winsrh-title { 
@@ -28,13 +30,13 @@
             text-shadow: red 0px 0px 10px, red 0px 0px 20px, green 0px 0px 40px, green 0px 0px 80px; 
             text-transform: uppercase; 
             letter-spacing: 5px; 
+            text-align: center;
         }
 
         #ascii-logo { 
             font-family: monospace; 
             font-size: 8px; 
             line-height: 8px; 
-            margin-right: 15px; 
             color: rgb(0, 164, 239); 
             animation: 4s linear 0s infinite normal none running spin; 
         }
@@ -46,25 +48,29 @@
         .search-box { 
             display: flex; 
             align-items: center; 
-            gap: 10px; 
+            gap: 15px; 
             background: rgba(0, 0, 0, 0.3); 
             padding: 20px; 
             border-radius: 50px; 
+            max-width: 90%;
         }
 
         form {
             display: flex;
             align-items: center;
             gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
         }
 
         input { 
             padding: 12px; 
-            width: 300px; 
+            width: 250px; 
             border-radius: 20px; 
             border: 1px solid rgb(119, 119, 119); 
             background: white;
             color: black;
+            font-size: 14px;
         }
 
         .btn { 
@@ -74,12 +80,14 @@
             border: 1px solid rgb(119, 119, 119); 
             background: rgb(34, 34, 34); 
             color: white; 
+            font-size: 14px;
         }
 
         #speed-status { 
             margin-top: 15px; 
             font-weight: bold; 
             font-family: monospace; 
+            text-align: center;
         }
 
         .github-link { 
@@ -89,7 +97,6 @@
             fill: white; 
         }
 
-        /* Captcha custom stacking framework */
         .captcha-wrapper {
             display: flex;
             flex-direction: column;
@@ -103,6 +110,34 @@
             color: #ff0000;
             text-transform: lowercase;
             font-weight: bold;
+        }
+
+        /* Responsive Mobile Tweak */
+        @media (max-width: 600px) {
+            #winsrh-title {
+                font-size: 45px;
+            }
+            .search-box {
+                flex-direction: column;
+                border-radius: 25px;
+                padding: 15px;
+                width: 100%;
+            }
+            form {
+                flex-direction: column;
+                width: 100%;
+            }
+            input {
+                width: 100%;
+                box-sizing: border-box;
+            }
+            .btn, select {
+                width: 100%;
+                text-align: center;
+            }
+            #ascii-logo {
+                margin: 5px 0;
+            }
         }
     </style>
 </head>
@@ -124,19 +159,25 @@
                 <option value="https://www.google.com/search?q=">Google</option>
                 <option value="https://duckduckgo.com/?q=">DuckDuckGo</option>
             </select>
+
+            <select id="lang-select" class="btn">
+                <option value="en">English</option>
+                <option value="meep">Meep 🐸</option>
+            </select>
             
             <div class="captcha-wrapper">
-                <label for="turnstile-widget" class="captcha-label">r u a bot?</label>
+                <label for="turnstile-widget" class="captcha-label" id="captcha-text">r u a bot?</label>
                 <div id="turnstile-widget" class="cf-turnstile" data-sitekey="0x4AAAAAADtjMo753oRA4oAz" data-theme="dark"></div>
             </div>
 
-            <button type="submit" class="btn">Go!</button>
+            <button type="submit" class="btn" id="go-btn">Go!</button>
         </form>
     </div>
     
     <div id="speed-status" style="color: rgb(0, 255, 0);">Status: Good</div>
 
     <script>
+        // Form Engine Submission Engine Logic
         document.getElementById('searchForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -144,9 +185,36 @@
             const engineBaseUrl = document.getElementById('engine').value;
             
             if (query.trim() !== "") {
-                // Combines selected engine URL query parameter string with input value
                 window.open(engineBaseUrl + encodeURIComponent(query), '_blank');
             }
+        });
+
+        // Meep Language Translator System
+        const translations = {
+            en: {
+                placeholder: "search the www!",
+                captcha: "r u a bot?",
+                goBtn: "Go!"
+            },
+            meep: {
+                placeholder: "SEARSH DA SWAMP...",
+                captcha: "r u a fly?",
+                goBtn: "LETZ DO THIS"
+            }
+        };
+
+        const langSelect = document.getElementById('lang-select');
+        const queryInput = document.getElementById('query');
+        const captchaLabel = document.getElementById('captcha-text');
+        const goButton = document.getElementById('go-btn');
+
+        langSelect.addEventListener('change', function(e) {
+            const currentLang = e.target.value;
+            
+            // Translate the placeholders and strings
+            queryInput.placeholder = translations[currentLang].placeholder;
+            captchaLabel.textContent = translations[currentLang].captcha;
+            goButton.textContent = translations[currentLang].goBtn;
         });
     </script>
 </body>
