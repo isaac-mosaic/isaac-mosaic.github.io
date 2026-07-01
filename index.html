@@ -177,7 +177,7 @@
     <div id="speed-status" style="color: rgb(0, 255, 0);">Status: Good</div>
 
     <script>
-        // Form Engine Submission Engine Logic
+        // Form Submission Logic
         document.getElementById('searchForm').addEventListener('submit', function(e) {
             e.preventDefault();
             
@@ -189,32 +189,41 @@
             }
         });
 
-        // Meep Language Translator System
+        // Expanded Meep Language Dictionary
         const translations = {
             en: {
+                title: "WINSRH",
                 placeholder: "search the www!",
                 captcha: "r u a bot?",
-                goBtn: "Go!"
+                goBtn: "Go!",
+                status: "Status: Good"
             },
             meep: {
+                title: "MEEPOS",
                 placeholder: "SEARSH DA SWAMP...",
                 captcha: "r u a fly?",
-                goBtn: "LETZ DO THIS"
+                goBtn: "LETZ DO THIS",
+                status: "SWAMP SPEED: RIBBIT"
             }
         };
 
+        // DOM elements
         const langSelect = document.getElementById('lang-select');
+        const mainTitle = document.getElementById('winsrh-title');
         const queryInput = document.getElementById('query');
         const captchaLabel = document.getElementById('captcha-text');
         const goButton = document.getElementById('go-btn');
+        const statusDiv = document.getElementById('speed-status');
 
+        // Dynamic Translation Event Listener
         langSelect.addEventListener('change', function(e) {
             const currentLang = e.target.value;
             
-            // Translate the placeholders and strings
+            mainTitle.textContent = translations[currentLang].title;
             queryInput.placeholder = translations[currentLang].placeholder;
             captchaLabel.textContent = translations[currentLang].captcha;
             goButton.textContent = translations[currentLang].goBtn;
+            statusDiv.textContent = translations[currentLang].status;
         });
     </script>
 </body>
