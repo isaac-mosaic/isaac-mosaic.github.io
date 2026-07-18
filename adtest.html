@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ad Blocker Tester</title>
+    <style>
+        body { font-family: sans-serif; text-align: center; padding: 50px; }
+        .stats-box { font-size: 1.5rem; border: 2px solid #333; padding: 20px; display: inline-block; margin-bottom: 20px; }
+        .test-input { margin-top: 20px; }
+        input { padding: 10px; width: 300px; }
+        button { padding: 10px 20px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <h1>Ad Blocker Diagnostic</h1>
+    <div class="stats-box">
+        <p>Attempted: <span id="attempted">0</span> | Loaded: <span id="loaded">0</span></p>
+        <p>Blocked (AdBlocker): <span id="blocked">0</span> | Refused/Failed: <span id="refused">0</span></p>
+    </div>
+
+    <div class="test-input">
+        <input type="text" id="adUrl" placeholder="Enter script URL...">
+        <button onclick="testCustomUrl()">Load Ad</button>
+    </div>
+
+    <div id="test-container" style="display:none;"></div>
+
+    <script>
+        let stats = { attempted: 0, blocked: 0, loaded: 0, refused: 0 };
+
+        function updateDisplay() {
+            document.getElementById('attempted').innerText = stats.attempted;
+            document.getElementById('blocked').innerText = stats.blocked;
+            document.getElementById('loaded').innerText = stats.loaded;
+            document.getElementById('refused').innerText = stats.refused;
+        }
+
+        function testCustomUrl() {
+            const url = document.getElementById('adUrl').value;
+            if (!url) return alert("Please enter a URL");
+
+            stats.attempted++;
+            updateDisplay();
+
+            const script = document.createElement('script');
+            script.src = url;
+            
+            script.onload = () => {
+                stats.loaded++;
+                updateDisplay();
+                script.remove();
+            };
+            
+            script.onerror = (e) => {
+                // If the navigator is online but the request fails, 
+                // it's often a block or a refuse.
+                if (navigator.onLine) {
+                    // Distinction is difficult in JS, but usually:
+                    // If the src is an ad domain, we increment blocked.
+                    // Otherwise, we increment refused.
+                    if (url.includes('doubleclick') || url.includes('ads') || url.includes('googlesyndication')) {
+                        stats.blocked++;
+                    } else {
+                        stats.refused++;
+                    }
+                } else {
+                    stats.refused++;
+                }
+                updateDisplay();
+                script.remove();
+            };
+
+            document.getElementById('test-container').appendChild(script);
+        }
+    </script>
+</body>
+</html>
