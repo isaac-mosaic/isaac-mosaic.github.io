@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>youtubez player (2008)</title>
+  <style>
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background-color: #f1f1f1;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 30px;
+    }
+
+    /* URL Input Box */
+    .url-builder {
+      margin-bottom: 25px;
+      display: flex;
+      gap: 8px;
+    }
+
+    .url-builder input {
+      padding: 6px 10px;
+      width: 350px;
+      border: 1px solid #999;
+      border-radius: 3px;
+      font-size: 13px;
+    }
+
+    .url-builder button {
+      padding: 6px 14px;
+      background: linear-gradient(to bottom, #4c4c4c 0%, #1c1c1c 100%);
+      color: #fff;
+      border: 1px solid #000;
+      border-radius: 3px;
+      cursor: pointer;
+      font-weight: bold;
+      font-size: 12px;
+    }
+
+    .url-builder button:hover {
+      background: linear-gradient(to bottom, #5c5c5c 0%, #2c2c2c 100%);
+    }
+
+    /* 2008 Player Main Frame */
+    .yt-2008-box {
+      width: 100%;
+      max-width: 640px;
+      background: #000;
+      border: 1px solid #999;
+      box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    }
+
+    /* 16:9 Video Embed Container */
+    .video-container {
+      position: relative;
+      padding-bottom: 56.25%;
+      height: 0;
+      background: #000;
+    }
+
+    .video-container iframe {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+    }
+
+    /* 2008 Classic Dark Control Bar */
+    .control-bar {
+      display: flex;
+      align-items: center;
+      height: 29px;
+      background: linear-gradient(to bottom, #4a4a4a 0%, #2b2b2b 50%, #191919 51%, #000000 100%);
+      border-top: 1px solid #555;
+      padding: 0 8px;
+      gap: 10px;
+      user-select: none;
+    }
+
+    /* Retro Control Buttons */
+    .play-btn {
+      width: 0;
+      height: 0;
+      border-top: 6px solid transparent;
+      border-bottom: 6px solid transparent;
+      border-left: 10px solid #ccc;
+      cursor: pointer;
+      margin-left: 4px;
+    }
+
+    .play-btn:hover {
+      border-left-color: #fff;
+    }
+
+    /* Time Display */
+    .time-display {
+      font-size: 10px;
+      color: #bbb;
+      font-family: Arial, sans-serif;
+    }
+
+    /* Classic Red & Grey Progress Bar */
+    .progress-container {
+      flex-grow: 1;
+      height: 8px;
+      background: #222;
+      border: 1px solid #555;
+      border-radius: 2px;
+      overflow: hidden;
+      position: relative;
+    }
+
+    .progress-bar {
+      width: 0%;
+      height: 100%;
+      background: linear-gradient(to bottom, #e60000 0%, #990000 100%);
+      transition: width 0.3s ease;
+    }
+
+    /* Volume Graphic Placeholder */
+    .volume-icon {
+      font-size: 11px;
+      color: #aaa;
+      cursor: pointer;
+    }
+
+    /* HQ Badge (Popular feature introduced around 2008) */
+    .hq-btn {
+      background: #333;
+      color: #e60000;
+      border: 1px solid #555;
+      font-size: 9px;
+      font-weight: bold;
+      padding: 1px 3px;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+
+    /* 2008 YouTube Logo */
+    .classic-logo {
+      font-family: 'Arial Black', Gadget, sans-serif;
+      font-size: 13px;
+      color: #fff;
+      letter-spacing: -0.5px;
+    }
+
+    .classic-logo b {
+      background: linear-gradient(to bottom, #e60000 0%, #990000 100%);
+      color: #fff;
+      padding: 1px 3px;
+      border-radius: 3px;
+      font-weight: bold;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="url-builder">
+    <input type="text" id="videoUrl" placeholder="Paste YouTube link or Short link here...">
+    <button onclick="loadVideo()">Play Video</button>
+  </div>
+
+  <div class="yt-2008-box">
+    
+    <div class="video-container">
+      <iframe id="ytEmbed" src="" frameborder="0" allow="autoplay; encrypted-media" allowfullscreen></iframe>
+    </div>
+
+    <div class="control-bar">
+      <div class="play-btn" title="Play"></div>
+      <span class="time-display">0:00 / 0:00</span>
+      
+      <div class="progress-container">
+        <div class="progress-bar" id="progressBar"></div>
+      </div>
+      
+      <span class="volume-icon">🔊</span>
+      <span class="hq-btn">HQ</span>
+      <span class="classic-logo">You<b>Tube</b></span>
+    </div>
+
+  </div>
+
+  <script>
+    function extractVideoId(url) {
+      // Parses standard video links, embed URLs, short links, and YouTube Shorts
+      const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=|shorts\/)([^#&?]*).*/;
+      const match = url.match(regExp);
+
+      return (match && match[2].length === 11) ? match[2] : null;
+    }
+
+    function loadVideo() {
+      const urlInput = document.getElementById('videoUrl').value.trim();
+      const videoId = extractVideoId(urlInput);
+      const iframe = document.getElementById('ytEmbed');
+      const progressBar = document.getElementById('progressBar');
+
+      if (videoId) {
+        iframe.src = `https://www.youtube.com/embed/${videoId}?autoplay=1`;
+        progressBar.style.width = '100%';
+      } else {
+        alert('Please enter a valid YouTube video or Short URL.');
+      }
+    }
+  </script>
+
+</body>
+</html>
