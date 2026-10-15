@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, maximum-scale=1.0">
+    <title>Roblox 3D Engine - Robloxian 2.0 Simulation</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+    <!-- CSS2DRenderer for Name Tags & Chat UI -->
+    <script src="https://unpkg.com/three@0.128.0/examples/js/renderers/CSS2DRenderer.js"></script>
+    <!-- PeerJS for P2P Online Multiplayer -->
+    <script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap');
+
+        * {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: manipulation;
+            box-sizing: border-box;
+        }
+
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #0d1117;
+            font-family: 'Inter', sans-serif;
+        }
+
+        #canvasContainer {
+            width: 100%;
+            height: 100%;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+        }
+
+        /* Virtual Joystick - Always visible with robust contrast */
+        .joystick-container {
+            width: 128px;
+            height: 128px;
+            background: rgba(15, 23, 42, 0.85);
+            border: 3px solid #0284c7;
+            border-radius: 50%;
+            position: relative;
+            touch-action: none;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.8), 0 0 16px rgba(2, 132, 199, 0.4);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .joystick-stick {
+            width: 54px;
+            height: 54px;
+            background: radial-gradient(circle, #38bdf8 0%, #0284c7 100%);
+            border: 2px solid #ffffff;
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            box-shadow: 0 4px 16px rgba(2, 132, 199, 0.8);
+        }
+
+        /* Touch Jump Button */
+        .jump-btn {
+            width: 82px;
+            height: 82px;
+            background: radial-gradient(circle, #38bdf8 0%, #0369a1 100%);
+            border: 3px solid #ffffff;
+            border-radius: 50%;
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            box-shadow: 0 8px 28px rgba(0, 0, 0, 0.8), 0 0 16px rgba(56, 189, 248, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: #ffffff;
+            font-weight: 900;
+            font-size: 15px;
+            letter-spacing: 0.05em;
+            transition: transform 0.08s ease, background 0.08s ease;
+        }
+
+        .jump-btn:active {
+            transform: scale(0.92);
+            background: radial-gradient(circle, #0284c7 0%, #0369a1 100%);
+        }
+
+        /* Speech Bubbles */
+        .speech-bubble {
+            background: rgba(255, 255, 255, 0.95);
+            color: #0f172a;
+            padding: 6px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 700;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            border: 2px solid #0284c7;
+            position: relative;
+            pointer-events: none;
+            white-space: nowrap;
+        }
+
+        .speech-bubble::after {
+            content: '';
+            position: absolute;
+            bottom: -8px;
+            left: 50%;
+            transform: translateX(-50%);
+            border-width: 8px 8px 0;
+            border-style: solid;
+            border-color: #0284c7 transparent;
+            display: block;
+            width: 0;
+        }
+
+        /* First Person Crosshair */
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 10px;
+            height: 10px;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 50;
+        }
+        #crosshair::before, #crosshair::after {
+            content: '';
+            position: absolute;
+            background: rgba(255, 255, 255, 0.85);
+            box-shadow: 0 0 4px rgba(0, 0, 0, 0.8);
+        }
+        #crosshair::before { top: 4px; left: 0; width: 10px; height: 2px; }
+        #crosshair::after { top: 0; left: 4px; width: 2px; height: 10px; }
+
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); }
+        ::-webkit-scrollbar-thumb { background: rgba(56, 189, 248, 0.5); border-radius: 3px; }
+    </style>
+</head>
+<body class="bg-slate-950 text-white select-none overflow-hidden">
+
+    <!-- Primary WebGL Engine Viewport -->
+    <div id="canvasContainer"></div>
+
+    <!-- First Person Crosshair Overlay -->
+    <div id="crosshair" class="hidden"></div>
+
+    <!-- Top Left HUD: Online Room Status & Chat Log -->
+    <div class="absolute top-4 left-4 z-40 flex flex-col gap-3 pointer-events-none max-w-xs w-full">
+        <div class="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-2xl p-3 shadow-2xl flex items-center justify-between">
+            <div class="flex items-center gap-2.5">
+                <span class="w-3 h-3 rounded-full bg-emerald-400 animate-pulse"></span>
+                <div>
+                    <div class="text-[10px] font-black tracking-wider text-slate-400 uppercase">Room Code</div>
+                    <div id="roomIdDisplay" class="text-xs font-mono font-bold text-sky-400">Offline / Standalone</div>
+                </div>
+            </div>
+            <button onclick="copyRoomLink()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs px-2.5 py-1.5 rounded-lg font-bold transition active:scale-95">
+                📋 Copy Link
+            </button>
+        </div>
+
+        <!-- In-Game Text Chat HUD -->
+        <div class="pointer-events-auto bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-2xl p-3 shadow-2xl flex flex-col gap-2">
+            <div id="chatLog" class="h-28 overflow-y-auto text-xs flex flex-col gap-1 pr-1 font-medium">
+                <div class="text-slate-400 italic"><span class="text-sky-400 font-bold">System:</span> Welcome to Roblox Web Engine! Press <kbd class="bg-slate-800 px-1 rounded text-sky-300">V</kbd> or zoom for 1st Person.</div>
+            </div>
+            <form onsubmit="sendChatMessage(event)" class="flex gap-2">
+                <input id="chatInput" type="text" placeholder="Press Enter to chat..." autocomplete="off" class="w-full bg-slate-950/80 border border-slate-700 text-xs text-white px-3 py-1.5 rounded-xl focus:outline-none focus:border-sky-400 transition">
+                <button type="submit" class="bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs px-3 py-1.5 rounded-xl transition">
+                    Send
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Top Right Collapsible Menu Bar (Settings & Studio Modal Loader) -->
+    <div class="absolute top-4 right-4 z-40 flex items-center gap-2 pointer-events-auto">
+        <button onclick="toggleGraphicsModal()" class="bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-white font-bold p-2.5 rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center">
+            ⚙️ <span class="hidden sm:inline text-xs ml-1.5">Settings</span>
+        </button>
+        <button onclick="toggleStudioModal()" class="bg-slate-900/80 hover:bg-slate-800 backdrop-blur-md border border-slate-700/60 text-white font-bold p-2.5 rounded-2xl shadow-xl transition active:scale-95 flex items-center justify-center">
+            📦 <span class="hidden sm:inline text-xs ml-1.5">Insert Parts</span>
+        </button>
+    </div>
+
+    <!-- Settings & Graphics Sky Quality Modal -->
+    <div id="graphicsModal" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-sm w-full shadow-2xl flex flex-col gap-5">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="font-extrabold text-base text-sky-400 flex items-center gap-2">⚙️ Environment & Graphics</h3>
+                <button onclick="toggleGraphicsModal()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+
+            <div class="flex flex-col gap-4 text-xs font-semibold">
+                <div>
+                    <div class="flex justify-between mb-1.5 text-slate-300">
+                        <span>Graphics Quality</span>
+                        <span id="graphicsQualityVal" class="text-sky-400 font-bold">7 (High)</span>
+                    </div>
+                    <input type="range" min="1" max="10" value="7" class="w-full accent-sky-400 cursor-pointer" oninput="updateGraphicsQuality(this.value)">
+                </div>
+
+                <div>
+                    <div class="flex justify-between mb-1.5 text-slate-300">
+                        <span>Time of Day (Sun Angle)</span>
+                        <span id="timeOfDayVal" class="text-sky-400 font-bold">14:00</span>
+                    </div>
+                    <input type="range" min="0" max="24" step="0.5" value="14" class="w-full accent-sky-400 cursor-pointer" oninput="updateTimeOfDay(this.value)">
+                </div>
+
+                <div class="flex items-center justify-between border-t border-slate-800 pt-3">
+                    <span class="text-slate-300">Detailed 'R' Logo Studs</span>
+                    <input type="checkbox" checked class="w-4 h-4 accent-sky-500 rounded cursor-pointer" onchange="toggleStudDetail(this.checked)">
+                </div>
+            </div>
+
+            <button onclick="toggleGraphicsModal()" class="bg-sky-600 hover:bg-sky-500 text-white font-extrabold text-xs py-2.5 rounded-xl shadow-lg transition mt-2">
+                Done
+            </button>
+        </div>
+    </div>
+
+    <!-- Insert Parts & Roblox Asset Spawner Modal -->
+    <div id="studioModal" class="hidden absolute inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+        <div class="bg-slate-900 border border-slate-700 rounded-3xl p-6 max-w-md w-full shadow-2xl flex flex-col gap-5">
+            <div class="flex justify-between items-center border-b border-slate-800 pb-3">
+                <h3 class="font-extrabold text-base text-sky-400 flex items-center gap-2">📦 Roblox Studio Spawner</h3>
+                <button onclick="toggleStudioModal()" class="text-slate-400 hover:text-white font-bold text-lg">✕</button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3 text-xs font-bold">
+                <button onclick="spawnPart('Block', '#0284c7')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-2xl flex flex-col items-center gap-1 transition active:scale-95">
+                    <span class="text-xl">🧊</span>
+                    <span>Spawn Block</span>
+                </button>
+                <button onclick="spawnPart('Sphere', '#ef4444')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-2xl flex flex-col items-center gap-1 transition active:scale-95">
+                    <span class="text-xl">⚽</span>
+                    <span>Spawn Sphere</span>
+                </button>
+                <button onclick="spawnPart('Cylinder', '#10b981')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-2xl flex flex-col items-center gap-1 transition active:scale-95">
+                    <span class="text-xl">🥫</span>
+                    <span>Spawn Cylinder</span>
+                </button>
+                <button onclick="spawnPart('Wedge', '#f59e0b')" class="bg-slate-800 hover:bg-slate-700 border border-slate-700 p-3 rounded-2xl flex flex-col items-center gap-1 transition active:scale-95">
+                    <span class="text-xl">📐</span>
+                    <span>Spawn Wedge</span>
+                </button>
+            </div>
+
+            <div class="flex flex-col gap-2 border-t border-slate-800 pt-3">
+                <label class="text-xs font-semibold text-slate-300">Fetch Roblox Item ID (rbxassetid://)</label>
+                <div class="flex gap-2">
+                    <input id="assetIdInput" type="text" placeholder="e.g., 1818 or 12345" class="w-full bg-slate-950 border border-slate-700 text-xs text-white px-3 py-2 rounded-xl focus:outline-none focus:border-sky-400">
+                    <button onclick="fetchAssetFromModal()" class="bg-sky-600 hover:bg-sky-500 font-bold text-xs px-4 rounded-xl transition whitespace-nowrap">
+                        Load
+                    </button>
+                </div>
+            </div>
+
+            <button onclick="clearWorkspace()" class="bg-red-950 hover:bg-red-900 border border-red-800 text-red-300 font-bold text-xs py-2 rounded-xl transition">
+                🗑️ Clear Workspace Objects
+            </button>
+        </div>
+    </div>
+
+    <!-- On-Screen Mobile Touch Controls -->
+    <div id="touchControlsHUD" class="absolute bottom-8 left-6 right-6 z-[9999] flex items-end justify-between pointer-events-none select-none">
+        <div id="touchJoystick" class="joystick-container pointer-events-auto">
+            <div id="joystickStick" class="joystick-stick"></div>
+        </div>
+
+        <div class="pointer-events-auto flex flex-col gap-3 items-center">
+            <button id="fpToggleBtn" onclick="toggleFirstPerson()" class="bg-slate-900/90 backdrop-blur-md text-sky-400 text-xs font-black border border-sky-500 px-4 py-2 rounded-2xl shadow-xl active:scale-95 transition">
+                📷 Camera Mode
+            </button>
+            <button id="jumpBtn" class="jump-btn">
+                JUMP
+            </button>
+        </div>
+    </div>
+
+    <!-- Primary Simulation Script -->
+    <script>
+        let scene, camera, renderer, cssRenderer;
+        let baseplate, boyGuestGroup;
+        let ambientLight, sunLight;
+        let audioCtx = null;
+
+        const playerPos = new THREE.Vector3(0, 0, 0);
+        let playerRotationY = 0;
+        let playerVelY = 0;
+        let isJumping = false;
+        const gravity = -0.018; 
+        const jumpVelocity = 0.38;
+        let walkSpeed = 0.26;
+        let isSprinting = false;
+
+        let cameraDistance = 14;
+        let cameraYaw = 0;
+        let cameraPitch = 0.25;
+        let isFirstPerson = false;
+        let isRightMouseDown = false;
+        let isMiddleMouseDown = false;
+
+        const keysPressed = {};
+        let joystickTouchId = null;
+        let joystickVec = { x: 0, y: 0 };
+        let touchCameraId = null;
+        let lastTouchCamPos = { x: 0, y: 0 };
+
+        let workspaceObjects = [];
+        const charRadius = 1.2;
+        const charHeight = 6.0;
+
+        let peer = null;
+        let myPeerId = null;
+        const roomConnections = {};
+        const remotePlayers = {};
+
+        window.addEventListener('DOMContentLoaded', () => {
+            initEngine();
+        });
+
+        function initEngine() {
+            try {
+                const container = document.getElementById('canvasContainer');
+
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x87ceeb);
+                scene.fog = new THREE.FogExp2(0x87ceeb, 0.0012);
+
+                camera = new THREE.PerspectiveCamera(65, window.innerWidth / window.innerHeight, 0.1, 1500);
+
+                renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: "high-performance" });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                container.appendChild(renderer.domElement);
+
+                cssRenderer = new THREE.CSS2DRenderer();
+                cssRenderer.setSize(window.innerWidth, window.innerHeight);
+                cssRenderer.domElement.style.position = 'absolute';
+                cssRenderer.domElement.style.top = '0px';
+                cssRenderer.domElement.style.pointerEvents = 'none';
+                container.appendChild(cssRenderer.domElement);
+
+                ambientLight = new THREE.AmbientLight(0xffffff, 0.65);
+                scene.add(ambientLight);
+
+                sunLight = new THREE.DirectionalLight(0xffffff, 0.95);
+                sunLight.position.set(250, 400, 150);
+                sunLight.castShadow = true;
+                sunLight.shadow.mapSize.width = 1024;
+                sunLight.shadow.mapSize.height = 1024;
+                sunLight.shadow.camera.near = 10;
+                sunLight.shadow.camera.far = 1000;
+                const d = 400;
+                sunLight.shadow.camera.left = -d; sunLight.shadow.camera.right = d;
+                sunLight.shadow.camera.top = d; sunLight.shadow.camera.bottom = -d;
+                scene.add(sunLight);
+
+                create768Baseplate(true);
+                createRobloxian20BoyGuest();
+
+                setupPCInputListeners();
+                setupTouchControls();
+                window.addEventListener('resize', onWindowResize, false);
+
+                initPeerJSNetwork();
+                animate();
+
+            } catch (err) {
+                console.error("Initialization error:", err);
+            }
+        }
+
+        function onWindowResize() {
+            if (!camera || !renderer || !cssRenderer) return;
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            cssRenderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        function playRobloxJumpSound() {
+            try {
+                if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(150, audioCtx.currentTime);
+                osc.frequency.exponentialRampToValueAtTime(380, audioCtx.currentTime + 0.12);
+                gain.gain.setValueAtTime(0.35, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.01, audioCtx.currentTime + 0.14);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + 0.15);
+            } catch (err) {}
+        }
+
+        function triggerJump() {
+            if (!isJumping) {
+                isJumping = true;
+                playerVelY = jumpVelocity;
+                playRobloxJumpSound();
+            }
+        }
+
+        function createRStudTexture(highRes = true) {
+            const canvas = document.createElement('canvas');
+            const res = highRes ? 128 : 64;
+            canvas.width = res; canvas.height = res;
+            const ctx = canvas.getContext('2d');
+
+            ctx.fillStyle = '#a3a3a3';
+            ctx.fillRect(0, 0, res, res);
+
+            const padding = res * 0.12;
+            const size = res - (padding * 2);
+            ctx.fillStyle = '#737373'; ctx.fillRect(padding, padding, size, size);
+            ctx.fillStyle = '#d4d4d4'; ctx.fillRect(padding + 2, padding + 2, size - 4, size - 4);
+            ctx.fillStyle = '#b5b5b5'; ctx.fillRect(padding + 6, padding + 6, size - 12, size - 12);
+
+            if (highRes) {
+                ctx.fillStyle = '#ffffff';
+                ctx.save();
+                ctx.translate(res / 2, res / 2);
+                const s = res / 96;
+                ctx.fillRect(-8 * s, -10 * s, 4 * s, 20 * s);
+                ctx.fillRect(-4 * s, -10 * s, 9 * s, 4 * s);
+                ctx.fillRect(1 * s, -6 * s, 4 * s, 4 * s);
+                ctx.fillRect(-4 * s, -2 * s, 9 * s, 4 * s);
+                ctx.fillRect(0 * s, 2 * s, 4 * s, 4 * s);
+                ctx.fillRect(3 * s, 6 * s, 4 * s, 4 * s);
+                ctx.restore();
+            }
+
+            const tex = new THREE.CanvasTexture(canvas);
+            tex.wrapS = THREE.RepeatWrapping;
+            tex.wrapT = THREE.RepeatWrapping;
+            return tex;
+        }
+
+        function create768Baseplate(highRes = true) {
+            if (baseplate) scene.remove(baseplate);
+            const size = 768;
+            const tex = createRStudTexture(highRes);
+            tex.repeat.set(size, size);
+            const geo = new THREE.BoxGeometry(size, 2, size);
+            const mat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.8, metalness: 0.1 });
+            baseplate = new THREE.Mesh(geo, mat);
+            baseplate.position.y = -1;
+            baseplate.receiveShadow = true;
+            scene.add(baseplate);
+        }
+
+        function createGuestFaceTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#f5cc9f'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#0f172a';
+            ctx.beginPath(); ctx.ellipse(75, 90, 14, 20, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.ellipse(181, 90, 14, 20, 0, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath(); ctx.arc(71, 84, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.beginPath(); ctx.arc(177, 84, 5, 0, Math.PI * 2); ctx.fill();
+            ctx.lineWidth = 8; ctx.strokeStyle = '#0f172a'; ctx.lineCap = 'round';
+            ctx.beginPath(); ctx.arc(128, 125, 45, 0.1 * Math.PI, 0.9 * Math.PI, false); ctx.stroke();
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createGuestTorsoTexture() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 256; canvas.height = 256;
+            const ctx = canvas.getContext('2d');
+            ctx.fillStyle = '#0f172a'; ctx.fillRect(0, 0, 256, 256);
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(0, 0, 256, 14);
+            ctx.fillStyle = '#475569'; ctx.fillRect(118, 14, 20, 242);
+            ctx.fillStyle = '#0284c7';
+            ctx.beginPath(); ctx.arc(75, 80, 34, 0, Math.PI * 2); ctx.fill();
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '900 38px Inter, sans-serif';
+            ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+            ctx.fillText('G', 75, 82);
+            return new THREE.CanvasTexture(canvas);
+        }
+
+        function createRobloxian20BoyGuest() {
+            boyGuestGroup = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5cc9f, roughness: 0.7 });
+            const jacketMat = new THREE.MeshStandardMaterial({ map: createGuestTorsoTexture(), roughness: 0.6 });
+            const jeansMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.8 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.5 });
+
+            const headMats = [
+                skinMat, skinMat, skinMat, skinMat,
+                new THREE.MeshStandardMaterial({ map: createGuestFaceTexture(), roughness: 0.7 }),
+                skinMat
+            ];
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8), headMats);
+            head.position.y = 5.0; head.castShadow = true; head.name = "Head";
+            boyGuestGroup.add(head);
+
+            const hairGroup = new THREE.Group();
+            hairGroup.name = "Hair";
+            const hairBase = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 2.0), hairMat);
+            hairBase.position.set(0, 5.7, 0); hairGroup.add(hairBase);
+            for (let i = 0; i < 5; i++) {
+                const spike = new THREE.Mesh(new THREE.ConeGeometry(0.4, 0.9, 4), hairMat);
+                spike.position.set(-0.6 + i * 0.3, 6.2, (Math.random() - 0.5) * 0.8);
+                hairGroup.add(spike);
+            }
+            boyGuestGroup.add(hairGroup);
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(2.1, 2.2, 1.1), jacketMat);
+            torso.position.y = 3.1; torso.castShadow = true; boyGuestGroup.add(torso);
+
+            const armGeo = new THREE.BoxGeometry(0.9, 2.2, 0.9);
+            armGeo.translate(0, -1.0, 0);
+            const lArm = new THREE.Mesh(armGeo, jacketMat); lArm.position.set(-1.5, 4.1, 0); lArm.name = "LeftArm"; lArm.castShadow = true; boyGuestGroup.add(lArm);
+            const rArm = new THREE.Mesh(armGeo, skinMat); rArm.position.set(1.5, 4.1, 0); rArm.name = "RightArm"; rArm.castShadow = true; boyGuestGroup.add(rArm);
+
+            const legGeo = new THREE.BoxGeometry(0.95, 2.1, 0.95);
+            legGeo.translate(0, -1.0, 0);
+            const lLeg = new THREE.Mesh(legGeo, jeansMat); lLeg.position.set(-0.55, 2.0, 0); lLeg.name = "LeftLeg"; lLeg.castShadow = true; boyGuestGroup.add(lLeg);
+            const rLeg = new THREE.Mesh(legGeo, jeansMat); rLeg.position.set(0.55, 2.0, 0); rLeg.name = "RightLeg"; rLeg.castShadow = true; boyGuestGroup.add(rLeg);
+
+            scene.add(boyGuestGroup);
+        }
+
+        function createRemotePlayerRig(peerId, nameTag) {
+            const group = new THREE.Group();
+            const skinMat = new THREE.MeshStandardMaterial({ color: 0xf5cc9f, roughness: 0.7 });
+            const jacketMat = new THREE.MeshStandardMaterial({ map: createGuestTorsoTexture(), roughness: 0.6 });
+            const jeansMat = new THREE.MeshStandardMaterial({ color: 0x1e3a8a, roughness: 0.8 });
+            const hairMat = new THREE.MeshStandardMaterial({ color: 0x3d2314, roughness: 0.5 });
+
+            const headMats = [
+                skinMat, skinMat, skinMat, skinMat,
+                new THREE.MeshStandardMaterial({ map: createGuestFaceTexture(), roughness: 0.7 }),
+                skinMat
+            ];
+            const head = new THREE.Mesh(new THREE.BoxGeometry(1.8, 1.8, 1.8), headMats);
+            head.position.y = 5.0; head.castShadow = true; group.add(head);
+
+            const hairBase = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.8, 2.0), hairMat);
+            hairBase.position.set(0, 5.7, 0); group.add(hairBase);
+
+            const torso = new THREE.Mesh(new THREE.BoxGeometry(2.1, 2.2, 1.1), jacketMat);
+            torso.position.y = 3.1; torso.castShadow = true; group.add(torso);
+
+            const armGeo = new THREE.BoxGeometry(0.9, 2.2, 0.9); armGeo.translate(0, -1.0, 0);
+            const lArm = new THREE.Mesh(armGeo, jacketMat); lArm.position.set(-1.5, 4.1, 0); group.add(lArm);
+            const rArm = new THREE.Mesh(armGeo, skinMat); rArm.position.set(1.5, 4.1, 0); group.add(rArm);
+
+            const legGeo = new THREE.BoxGeometry(0.95, 2.1, 0.95); legGeo.translate(0, -1.0, 0);
+            const lLeg = new THREE.Mesh(legGeo, jeansMat); lLeg.position.set(-0.55, 2.0, 0); group.add(lLeg);
+            const rLeg = new THREE.Mesh(legGeo, jeansMat); rLeg.position.set(0.55, 2.0, 0); group.add(rLeg);
+
+            const nameDiv = document.createElement('div');
+            nameDiv.className = 'px-2 py-0.5 bg-black/70 text-white text-[11px] font-bold rounded border border-sky-400 whitespace-nowrap shadow-lg';
+            nameDiv.innerText = nameTag || `Guest ${peerId.substring(0, 4)}`;
+            const cssNameObj = new THREE.CSS2DObject(nameDiv);
+            cssNameObj.position.set(0, 7.2, 0);
+            group.add(cssNameObj);
+
+            scene.add(group);
+            return { group, headMesh: head };
+        }
+
+        function initPeerJSNetwork() {
+            try {
+                if (typeof Peer === 'undefined') return;
+                const hash = window.location.hash;
+                let targetRoomId = null;
+                if (hash && hash.includes('room=')) targetRoomId = hash.split('room=')[1];
+
+                peer = new Peer();
+                peer.on('open', (id) => {
+                    myPeerId = id;
+                    document.getElementById('roomIdDisplay').innerText = id.substring(0, 6);
+                    if (targetRoomId && targetRoomId !== id) connectToPeer(targetRoomId);
+                    else window.location.hash = `room=${id}`;
+                });
+                peer.on('connection', (conn) => setupConnectionListeners(conn));
+            } catch (err) {}
+        }
+
+        function connectToPeer(remoteId) {
+            if (!peer || roomConnections[remoteId]) return;
+            const conn = peer.connect(remoteId);
+            setupConnectionListeners(conn);
+        }
+
+        function setupConnectionListeners(conn) {
+            conn.on('open', () => {
+                roomConnections[conn.peer] = conn;
+                addChatMessage('System', `Player joined: Guest ${conn.peer.substring(0, 4)}`);
+                conn.send({
+                    type: 'init',
+                    peerId: myPeerId,
+                    pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z },
+                    rotY: playerRotationY
+                });
+            });
+            conn.on('data', (data) => handleNetworkData(conn.peer, data));
+            conn.on('close', () => removeRemotePlayer(conn.peer));
+        }
+
+        function handleNetworkData(peerId, data) {
+            if (data.type === 'init' || data.type === 'update') {
+                if (!remotePlayers[peerId]) {
+                    const rig = createRemotePlayerRig(peerId, `Guest ${peerId.substring(0, 4)}`);
+                    remotePlayers[peerId] = {
+                        ...rig,
+                        targetPos: new THREE.Vector3(data.pos.x, data.pos.y, data.pos.z),
+                        targetRotY: data.rotY || 0
+                    };
+                } else {
+                    remotePlayers[peerId].targetPos.set(data.pos.x, data.pos.y, data.pos.z);
+                    remotePlayers[peerId].targetRotY = data.rotY;
+                }
+            } else if (data.type === 'chat') {
+                addChatMessage(`Guest ${peerId.substring(0, 4)}`, data.message);
+                showSpeechBubble(peerId, data.message);
+            }
+        }
+
+        function broadcastState() {
+            if (!peer) return;
+            const packet = {
+                type: 'update',
+                pos: { x: playerPos.x, y: playerPos.y, z: playerPos.z },
+                rotY: playerRotationY
+            };
+            for (let pid in roomConnections) {
+                if (roomConnections[pid].open) roomConnections[pid].send(packet);
+            }
+        }
+
+        function removeRemotePlayer(peerId) {
+            if (remotePlayers[peerId]) {
+                scene.remove(remotePlayers[peerId].group);
+                delete remotePlayers[peerId];
+            }
+            if (roomConnections[peerId]) delete roomConnections[peerId];
+            addChatMessage('System', `Player left: Guest ${peerId.substring(0, 4)}`);
+        }
+
+        function copyRoomLink() {
+            const url = window.location.href;
+            if (navigator.clipboard) {
+                navigator.clipboard.writeText(url);
+                addChatMessage('System', 'Room invite link copied!');
+            }
+        }
+
+        function sendChatMessage(e) {
+            e.preventDefault();
+            const input = document.getElementById('chatInput');
+            const text = input.value.trim();
+            if (!text) return;
+            addChatMessage('You', text);
+            showSpeechBubble('local', text);
+            for (let pid in roomConnections) {
+                if (roomConnections[pid].open) roomConnections[pid].send({ type: 'chat', message: text });
+            }
+            input.value = '';
+            input.blur();
+            document.body.focus();
+        }
+
+        function addChatMessage(sender, text) {
+            const log = document.getElementById('chatLog');
+            const div = document.createElement('div');
+            div.innerHTML = `<span class="font-bold text-sky-400">${sender}:</span> <span class="text-slate-100">${escapeHtml(text)}</span>`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        function showSpeechBubble(targetId, text) {
+            let targetGroup = (targetId === 'local') ? boyGuestGroup : (remotePlayers[targetId] ? remotePlayers[targetId].group : null);
+            if (!targetGroup) return;
+            const existing = targetGroup.getObjectByName("SpeechBubble");
+            if (existing) targetGroup.remove(existing);
+
+            const div = document.createElement('div');
+            div.className = 'speech-bubble';
+            div.innerText = text;
+            const cssBubbleObj = new THREE.CSS2DObject(div);
+            cssBubbleObj.name = "SpeechBubble";
+            cssBubbleObj.position.set(0, 7.8, 0);
+            targetGroup.add(cssBubbleObj);
+
+            setTimeout(() => {
+                if (targetGroup) {
+                    const b = targetGroup.getObjectByName("SpeechBubble");
+                    if (b) targetGroup.remove(b);
+                }
+            }, 5000);
+        }
+
+        function escapeHtml(str) {
+            return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+        }
+
+        function toggleFirstPerson() {
+            isFirstPerson = !isFirstPerson;
+            const crosshair = document.getElementById('crosshair');
+            if (isFirstPerson) {
+                cameraDistance = 0.5;
+                crosshair.classList.remove('hidden');
+                const head = boyGuestGroup.getObjectByName("Head");
+                const hair = boyGuestGroup.getObjectByName("Hair");
+                if (head) head.visible = false;
+                if (hair) hair.visible = false;
+                requestPointerLock();
+            } else {
+                if (cameraDistance <= 2) cameraDistance = 12;
+                crosshair.classList.add('hidden');
+                const head = boyGuestGroup.getObjectByName("Head");
+                const hair = boyGuestGroup.getObjectByName("Hair");
+                if (head) head.visible = true;
+                if (hair) hair.visible = true;
+                if (document.exitPointerLock) document.exitPointerLock();
+            }
+        }
+
+        function requestPointerLock() {
+            const container = document.getElementById('canvasContainer');
+            if (container.requestPointerLock) container.requestPointerLock();
+        }
+
+        function setupPCInputListeners() {
+            const container = document.getElementById('canvasContainer');
+            window.addEventListener('keydown', (e) => {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                    if (e.code === 'Escape') { document.activeElement.blur(); document.body.focus(); }
+                    return;
+                }
+                keysPressed[e.code] = true;
+                if (e.code === 'Space') { e.preventDefault(); triggerJump(); }
+                else if (e.code === 'KeyV') { toggleFirstPerson(); }
+                else if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') { isSprinting = true; }
+                else if (e.code === 'Enter') { e.preventDefault(); document.getElementById('chatInput').focus(); }
+            });
+
+            window.addEventListener('keyup', (e) => {
+                keysPressed[e.code] = false;
+                if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') isSprinting = false;
+            });
+
+            window.addEventListener('contextmenu', (e) => e.preventDefault());
+
+            container.addEventListener('mousedown', (e) => {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') {
+                    document.activeElement.blur(); document.body.focus();
+                }
+                if (e.button === 2) isRightMouseDown = true;
+                if (e.button === 1) isMiddleMouseDown = true;
+                if (isFirstPerson) requestPointerLock();
+            });
+
+            window.addEventListener('mouseup', (e) => {
+                if (e.button === 2) isRightMouseDown = false;
+                if (e.button === 1) isMiddleMouseDown = false;
+            });
+
+            window.addEventListener('mousemove', (e) => {
+                if (isFirstPerson || isRightMouseDown || isMiddleMouseDown || document.pointerLockElement === container) {
+                    const sensitivity = 0.0035;
+                    cameraYaw -= e.movementX * sensitivity;
+                    cameraPitch -= e.movementY * sensitivity;
+                    cameraPitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, cameraPitch));
+                }
+            });
+
+            window.addEventListener('wheel', (e) => {
+                if (document.activeElement && document.activeElement.tagName === 'INPUT') return;
+                const zoomSpeed = 2.0;
+                if (e.deltaY > 0) {
+                    if (isFirstPerson) { toggleFirstPerson(); cameraDistance = 5; }
+                    else { cameraDistance = Math.min(100, cameraDistance + zoomSpeed); }
+                } else if (e.deltaY < 0) {
+                    cameraDistance = Math.max(0.5, cameraDistance - zoomSpeed);
+                    if (cameraDistance <= 1.5 && !isFirstPerson) toggleFirstPerson();
+                }
+            }, { passive: true });
+        }
+
+        function toggleGraphicsModal() {
+            const modal = document.getElementById('graphicsModal');
+            modal.classList.toggle('hidden');
+            if (modal.classList.contains('hidden')) document.body.focus();
+        }
+
+        function toggleStudioModal() {
+            const modal = document.getElementById('studioModal');
+            modal.classList.toggle('hidden');
+            if (modal.classList.contains('hidden')) document.body.focus();
+        }
+
+        function updateGraphicsQuality(val) {
+            const level = parseInt(val);
+            const labels = ["1 (Potato)", "2 (Low)", "3", "4 (Medium)", "5", "6", "7 (High)", "8", "9", "10 (Ultra)"];
+            document.getElementById('graphicsQualityVal').innerText = labels[level - 1];
+            if (level <= 3) {
+                renderer.shadowMap.enabled = false;
+                renderer.setPixelRatio(1);
+            } else {
+                renderer.shadowMap.enabled = true;
+                renderer.setPixelRatio(Math.min(window.devicePixelRatio, level > 7 ? 2 : 1.25));
+            }
+        }
+
+        function updateTimeOfDay(hour) {
+            const h = parseFloat(hour);
+            document.getElementById('timeOfDayVal').innerText = `${Math.floor(h).toString().padStart(2, '0')}:${(h % 1 === 0 ? '00' : '30')}`;
+            const angle = ((h - 6) / 24) * Math.PI * 2;
+            sunLight.position.x = Math.cos(angle) * 450;
+            sunLight.position.y = Math.sin(angle) * 450;
+            sunLight.position.z = 200;
+        }
+
+        function toggleStudDetail(checked) {
+            create768Baseplate(checked);
+        }
+
+        function setupTouchControls() {
+            const base = document.getElementById('touchJoystick');
+            const stick = document.getElementById('joystickStick');
+            const jumpBtn = document.getElementById('jumpBtn');
+            const container = document.getElementById('canvasContainer');
+            if (!base || !stick || !jumpBtn || !container) return;
+
+            let center = { x: 0, y: 0 };
+            const maxRadius = 35;
+
+            const handleJoystickStart = (e) => {
+                e.preventDefault();
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (joystickTouchId === null) {
+                        joystickTouchId = touch.identifier;
+                        const rect = base.getBoundingClientRect();
+                        center = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+                        updateJoystick(touch.clientX, touch.clientY);
+                    }
+                }
+            };
+
+            const handleJoystickMove = (e) => {
+                if (joystickTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (touch.identifier === joystickTouchId) updateJoystick(touch.clientX, touch.clientY);
+                }
+            };
+
+            const handleJoystickEnd = (e) => {
+                if (joystickTouchId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === joystickTouchId) {
+                        joystickTouchId = null;
+                        stick.style.transform = `translate(-50%, -50%)`;
+                        joystickVec.x = 0; joystickVec.y = 0;
+                    }
+                }
+            };
+
+            function updateJoystick(cx, cy) {
+                let dx = cx - center.x;
+                let dy = cy - center.y;
+                let dist = Math.hypot(dx, dy);
+                if (dist > maxRadius) { dx = (dx / dist) * maxRadius; dy = (dy / dist) * maxRadius; }
+                stick.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
+                joystickVec.x = dx / maxRadius;
+                joystickVec.y = dy / maxRadius;
+            }
+
+            base.addEventListener('touchstart', handleJoystickStart, { passive: false });
+            window.addEventListener('touchmove', handleJoystickMove, { passive: false });
+            window.addEventListener('touchend', handleJoystickEnd, { passive: false });
+
+            container.addEventListener('touchstart', (e) => {
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (touch.identifier !== joystickTouchId && touchCameraId === null) {
+                        touchCameraId = touch.identifier;
+                        lastTouchCamPos = { x: touch.clientX, y: touch.clientY };
+                    }
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchmove', (e) => {
+                if (touchCameraId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    const touch = e.changedTouches[i];
+                    if (touch.identifier === touchCameraId) {
+                        const dx = touch.clientX - lastTouchCamPos.x;
+                        const dy = touch.clientY - lastTouchCamPos.y;
+                        lastTouchCamPos = { x: touch.clientX, y: touch.clientY };
+                        cameraYaw -= dx * 0.005;
+                        cameraPitch -= dy * 0.005;
+                        cameraPitch = Math.max(-Math.PI / 2 + 0.05, Math.min(Math.PI / 2 - 0.05, cameraPitch));
+                    }
+                }
+            }, { passive: true });
+
+            container.addEventListener('touchend', (e) => {
+                if (touchCameraId === null) return;
+                for (let i = 0; i < e.changedTouches.length; i++) {
+                    if (e.changedTouches[i].identifier === touchCameraId) touchCameraId = null;
+                }
+            }, { passive: true });
+
+            jumpBtn.addEventListener('touchstart', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                triggerJump();
+            }, { passive: false });
+        }
+
+        function spawnPart(type, color = '#0284c7') {
+            let geo;
+            if (type === 'Sphere') geo = new THREE.SphereGeometry(1.8, 24, 24);
+            else if (type === 'Cylinder') geo = new THREE.CylinderGeometry(1.5, 1.5, 3.5, 24);
+            else if (type === 'Wedge') geo = new THREE.ConeGeometry(2.2, 3.5, 4);
+            else geo = new THREE.BoxGeometry(3.5, 3.5, 3.5);
+
+            const mat = new THREE.MeshStandardMaterial({ color: color, roughness: 0.5 });
+            const mesh = new THREE.Mesh(geo, mat);
+            mesh.position.set(playerPos.x + (Math.random() - 0.5) * 10, 1.75, playerPos.z - 8 + (Math.random() - 0.5) * 4);
+            mesh.castShadow = true; mesh.receiveShadow = true;
+            scene.add(mesh);
+            workspaceObjects.push({ mesh });
+        }
+
+        function fetchAssetFromModal() {
+            spawnPart('Block', '#0284c7');
+            toggleStudioModal();
+        }
+
+        function clearWorkspace() {
+            workspaceObjects.forEach(item => scene.remove(item.mesh));
+            workspaceObjects = [];
+        }
+
+        // Robust Collision & Raycasting System
+        function resolveCollisions(nextPos) {
+            let resolvedPos = nextPos.clone();
+            const charBox = new THREE.Box3();
+
+            // 1. Horizontal Box Checks
+            charBox.min.set(resolvedPos.x - charRadius, resolvedPos.y + 0.1, resolvedPos.z - charRadius);
+            charBox.max.set(resolvedPos.x + charRadius, resolvedPos.y + charHeight, resolvedPos.z + charRadius);
+
+            for (let item of workspaceObjects) {
+                const partBox = new THREE.Box3().setFromObject(item.mesh);
+                if (charBox.intersectsBox(partBox)) {
+                    // Push out horizontally
+                    resolvedPos.x = playerPos.x;
+                    resolvedPos.z = playerPos.z;
+                    break;
+                }
+            }
+
+            // 2. Vertical Raycasting / Surface Landing Check
+            let targetFloorY = 0;
+            let landed = false;
+
+            const raycaster = new THREE.Raycaster();
+            const rayOrigin = new THREE.Vector3(resolvedPos.x, resolvedPos.y + charHeight, resolvedPos.z);
+            raycaster.set(rayOrigin, new THREE.Vector3(0, -1, 0));
+
+            const meshes = workspaceObjects.map(o => o.mesh);
+            if (baseplate) meshes.push(baseplate);
+
+            const intersects = raycaster.intersectObjects(meshes, false);
+            if (intersects.length > 0) {
+                // Find highest intersection directly under or supporting the character
+                for (let hit of intersects) {
+                    const surfaceY = hit.point.y;
+                    if (surfaceY <= resolvedPos.y + 0.5 && surfaceY >= resolvedPos.y - 1.5) {
+                        if (playerVelY <= 0) {
+                            targetFloorY = surfaceY;
+                            landed = true;
+                            break;
+                        }
+                    }
+                }
+            }
+
+            if (landed && resolvedPos.y <= targetFloorY + 0.05) {
+                resolvedPos.y = targetFloorY;
+                playerVelY = 0;
+                isJumping = false;
+            }
+
+            return resolvedPos;
+        }
+
+        const clock = new THREE.Clock();
+        let lastBroadcastTime = 0;
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+            walkSpeed = isSprinting ? 0.42 : 0.26;
+
+            if (boyGuestGroup) {
+                const camForward = new THREE.Vector3();
+                camera.getWorldDirection(camForward);
+                camForward.y = 0; camForward.normalize();
+
+                const camRight = new THREE.Vector3(-camForward.z, 0, camForward.x);
+                const moveDir = new THREE.Vector3(0, 0, 0);
+
+                if (keysPressed['KeyW'] || keysPressed['ArrowUp']) moveDir.add(camForward);
+                if (keysPressed['KeyS'] || keysPressed['ArrowDown']) moveDir.sub(camForward);
+                if (keysPressed['KeyA'] || keysPressed['ArrowLeft']) moveDir.sub(camRight);
+                if (keysPressed['KeyD'] || keysPressed['ArrowRight']) moveDir.add(camRight);
+
+                if (Math.abs(joystickVec.y) > 0.1 || Math.abs(joystickVec.x) > 0.1) {
+                    moveDir.addScaledVector(camForward, -joystickVec.y);
+                    moveDir.addScaledVector(camRight, joystickVec.x);
+                }
+
+                let nextPos = playerPos.clone();
+                if (moveDir.lengthSq() > 0) {
+                    moveDir.normalize();
+                    nextPos.addScaledVector(moveDir, walkSpeed);
+                    nextPos.x = Math.max(-380, Math.min(380, nextPos.x));
+                    nextPos.z = Math.max(-380, Math.min(380, nextPos.z));
+
+                    if (isFirstPerson) {
+                        playerRotationY = cameraYaw;
+                    } else {
+                        const targetAngle = Math.atan2(moveDir.x, moveDir.z);
+                        let diff = targetAngle - playerRotationY;
+                        while (diff < -Math.PI) diff += Math.PI * 2;
+                        while (diff > Math.PI) diff -= Math.PI * 2;
+                        playerRotationY += diff * 0.25;
+                    }
+                    boyGuestGroup.rotation.y = playerRotationY;
+
+                    const swingSpeed = isSprinting ? 18 : 12;
+                    const swing = Math.sin(elapsedTime * swingSpeed) * 0.7;
+                    const lArm = boyGuestGroup.getObjectByName("LeftArm");
+                    const rArm = boyGuestGroup.getObjectByName("RightArm");
+                    const lLeg = boyGuestGroup.getObjectByName("LeftLeg");
+                    const rLeg = boyGuestGroup.getObjectByName("RightLeg");
+                    if (lArm) lArm.rotation.x = swing;
+                    if (rArm) rArm.rotation.x = -swing;
+                    if (lLeg) lLeg.rotation.x = -swing;
+                    if (rLeg) rLeg.rotation.x = swing;
+                } else if (isFirstPerson) {
+                    playerRotationY = cameraYaw;
+                    boyGuestGroup.rotation.y = playerRotationY;
+                }
+
+                playerVelY += gravity;
+                nextPos.y += playerVelY;
+
+                playerPos.copy(resolveCollisions(nextPos));
+                if (playerPos.y <= 0) {
+                    playerPos.y = 0;
+                    playerVelY = 0;
+                    isJumping = false;
+                }
+
+                boyGuestGroup.position.copy(playerPos);
+
+                if (isFirstPerson) {
+                    camera.position.set(playerPos.x, playerPos.y + 5.2, playerPos.z);
+                    camera.rotation.set(cameraPitch, cameraYaw, 0, 'YXZ');
+                } else {
+                    const targetHeadPos = new THREE.Vector3(playerPos.x, playerPos.y + 4.5, playerPos.z);
+                    const cx = targetHeadPos.x + Math.sin(cameraYaw) * Math.cos(cameraPitch) * cameraDistance;
+                    const cy = targetHeadPos.y + Math.sin(cameraPitch) * cameraDistance;
+                    const cz = targetHeadPos.z + Math.cos(cameraYaw) * Math.cos(cameraPitch) * cameraDistance;
+                    camera.position.set(cx, Math.max(1.0, cy), cz);
+                    camera.lookAt(targetHeadPos);
+                }
+            }
+
+            for (let pid in remotePlayers) {
+                const rp = remotePlayers[pid];
+                rp.group.position.lerp(rp.targetPos, 0.2);
+                rp.group.rotation.y += (rp.targetRotY - rp.group.rotation.y) * 0.2;
+            }
+
+            if (performance.now() - lastBroadcastTime > 100) {
+                broadcastState();
+                lastBroadcastTime = performance.now();
+            }
+
+            if (renderer && scene && camera) renderer.render(scene, camera);
+            if (cssRenderer && scene && camera) cssRenderer.render(scene, camera);
+        }
+    </script>
+</body>
+</html>
